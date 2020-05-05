@@ -1,17 +1,20 @@
 import argparse
 parser = argparse.ArgumentParser(description="PyTorch code to train PGCN")
 parser.add_argument('--dataset', type=str, default='thumos14', choices=['activitynet1.3', 'thumos14'])
+parser.add_argument('--mode', type=str, default='debug', choices=['rgb', 'flow', 'debug'])
+parser.add_argument('--yaml_file', type=str, default='./data/dataset_cfg_{}.yaml',
+                    choices=['./data/dataset_cfg_{model}.yaml'])
 
 # ========================= Model Configs ==========================
 parser.add_argument('--dropout', '--do', default=0.8, type=float,
                     metavar='DO', help='dropout ratio (default: 0.8)')
 
 # ========================= Learning Configs ==========================
-parser.add_argument('--epochs', default=70, type=int, metavar='N',
+parser.add_argument('--epochs', default=50, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--training_epoch_multiplier', '--tem', default=10, type=int,
                     help='replicate the training set by N times in one epoch')
-parser.add_argument('-b', '--batch-size', default=32*4, type=int,
+parser.add_argument('-b', '--batch-size', default=32, type=int,
                     metavar='N', help='mini-batch size (default: 32)')
 parser.add_argument('-i', '--iter-size', default=1, type=int,
                     metavar='N', help='number of iterations before on update')
@@ -31,19 +34,19 @@ parser.add_argument('--reg_loss_weight', '--rw', default=0.5, type=float,
                     metavar='LW', help='the weight for the location regression loss')
 
 # ========================= Monitor Configs ==========================
-parser.add_argument('--print-freq', '-p', default=20, type=int,
+parser.add_argument('--print-freq', '-p', default=50, type=int,
                     metavar='N', help='print frequency (default: 20)')
 parser.add_argument('--eval-freq', '-ef', default=5, type=int,
                     metavar='N', help='evaluation frequency (default: 5)')
 
 # ========================= Runtime Configs ==========================
-parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+parser.add_argument('-j', '--workers', default=12, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
-parser.add_argument('--snapshot_pref', type=str, default="results/")
+parser.add_argument('--snapshot_pref', type=str, default="results/{}")
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
 parser.add_argument('--gpus', nargs='+', type=int, default=None)

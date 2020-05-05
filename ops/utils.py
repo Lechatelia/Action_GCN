@@ -3,6 +3,7 @@ import numpy as np
 import time
 import logging
 from ruamel import yaml
+import os
 
 def get_logger(args):
     logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ def get_logger(args):
     logger.addHandler(handler)
 
     date = time.strftime('%Y%m%d%H%M', time.localtime(time.time()))
-    logfile = args.snapshot_pref+date+'.log'
+    logfile = os.path.join(args.snapshot_pref,date+'.log')
     file_handler = logging.FileHandler(logfile, mode='w')
     file_handler.setLevel(logging.INFO)
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
@@ -24,15 +25,15 @@ def get_logger(args):
 
     return logger
 
-def get_configs(dataset):
-    data = yaml.load(open('data/dataset_cfg.yaml', 'r'), Loader=yaml.RoundTripLoader)
+def get_configs(dataset, yaml_file):
+    data = yaml.load(open(yaml_file, 'r'), Loader=yaml.RoundTripLoader)
     return data[dataset]
 
 def get_and_save_args(parser):
     args = parser.parse_args()
     dataset = args.dataset
 
-    default_config = yaml.load(open('./data/dataset_cfg.yaml', 'r'), Loader=yaml.RoundTripLoader)[dataset]
+    default_config = yaml.load(open(args.yaml_file.format(args.mode), 'r'), Loader=yaml.RoundTripLoader)[dataset]
     current_config = vars(args)
     for k, v in current_config.items():
         if k in default_config:

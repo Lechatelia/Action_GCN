@@ -11,7 +11,8 @@ Runhao Zeng*, Wenbing Huang*, Mingkui Tan, Yu Rong, Peilin Zhao, Junzhou Huang, 
 
 
 ## Updates
-
+和我的提取的thumos视频相比的话，在proposal——liist中的总帧数就是少了一帧，不影响总体精度
+然后提取的特征，维度上面采样系数大概是8帧的一个下采样
 
 20/12/2019 We have uploaded the RGB features, trained models and evaluation results! We found that increasing the number of proposals to 800 in the testing
 further boosts the performance on THUMOS14. We have also updated the proposal list.
@@ -31,7 +32,6 @@ further boosts the performance on THUMOS14. We have also updated the proposal li
 * [Other Info](#other-info)
    * [Citation](#citation)
    * [Contact](#contact)
-
 
 ----
 # Usage Guide

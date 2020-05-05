@@ -1,5 +1,7 @@
 import argparse
 import os
+os.environ['CUDA_DEVICE_ORDER'] = "PCI_BUS_ID"
+os.environ['CUDA_VISIBLE_DEVICES'] = "0,1,2,3"
 import torch
 import numpy as np
 from pgcn_dataset import PGCNDataSet
@@ -10,17 +12,24 @@ from ops.utils import get_configs
 from ops.I3D_Pooling import I3D_Pooling
 from tqdm import tqdm
 import random
+print('CUDA available: {}'.format(torch.cuda.is_available()))
 
+print('the available CUDA number is : {}'.format(torch.cuda.device_count()))
 parser = argparse.ArgumentParser(
     description="PGCN Testing Tool")
-parser.add_argument('dataset', type=str, choices=['activitynet1.2', 'thumos14'])
-parser.add_argument('weights', type=str)
-parser.add_argument('save_scores', type=str)
+parser.add_argument('--dataset', default='thumos14', type=str, choices=['activitynet1.2', 'thumos14'])
+parser.add_argument('--mode', type=str, default='flow', choices=['rgb', 'flow'])
+parser.add_argument('--yaml_file', type=str, default='./data/dataset_cfg_{}.yaml',
+                    choices=['./data/dataset_cfg_{model}.yaml'])
 
-parser.add_argument('--save_raw_scores', type=str, default=None)
+parser.add_argument('--weights', default='results/thumos14_{0}/thumos14_{0}_epoch_19_checkpoint.pth.tar', type=str)
+# parser.add_argument('--weights', default='results/thumos14_{0}/thumos14_model_best.pth.tar', type=str)
+parser.add_argument('--save_scores', default='results/{}_result', type=str)
+
+parser.add_argument('--save_raw_scores', type=str,default='results/{}_raw_score')
 parser.add_argument('--no_regression', action="store_true", default=False)
 parser.add_argument('--max_num', type=int, default=-1)
-parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
+parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--gpus', nargs='+', type=int, default=None)
 
@@ -33,10 +42,13 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 args = parser.parse_args()
-os.environ['CUDA_DEVICE_ORDER'] = "PCI_BUS_ID"
-os.environ['CUDA_VISIBLE_DEVICES'] = "0,2,3,4,5,6,7"
 
-configs = get_configs(args.dataset)
+args.weights = args.weights.format(args.mode)
+args.save_scores = args.save_scores.format(args.mode)
+args.save_raw_scores = args.save_raw_scores.format(args.mode)
+
+
+configs = get_configs(args.dataset, args.yaml_file.format(args.mode))
 dataset_configs = configs['dataset_configs']
 model_configs = configs["model_configs"]
 graph_configs = configs["graph_configs"]
@@ -44,7 +56,7 @@ graph_configs = configs["graph_configs"]
 adj_num = graph_configs['adj_num']
 num_class = model_configs['num_class']
 
-gpu_list = args.gpus if args.gpus is not None else range(8)
+gpu_list = args.gpus if args.gpus is not None else range(torch.cuda.device_count())
 
 
 
@@ -173,7 +185,6 @@ def runner_func(dataset, state_dict, stats, gpu_id, index_queue, result_queue, i
 if __name__ == '__main__':
     ctx = multiprocessing.get_context('spawn')  # this is crucial to using multiprocessing processes with PyTorch
 
-
     # This net is used to provides setup settings. It is not used for testing.
 
     checkpoint = torch.load(args.weights)
@@ -219,12 +230,19 @@ if __name__ == '__main__':
 
     if args.save_scores is not None:
         save_dict = {k: v[:-1] for k, v in out_dict.items()}
+        # import json
         import pickle
-
         pickle.dump(save_dict, open(args.save_scores, 'wb'), pickle.HIGHEST_PROTOCOL)
+        # with open(args.save_scores, 'w') as f:
+        #     json.dump(save_dict, f)
+        #     f.close()
 
     if args.save_raw_scores is not None:
         save_dict = {k: v[-1] for k, v in out_dict.items()}
         import pickle
-
+        # import json
         pickle.dump(save_dict, open(args.save_raw_scores, 'wb'), pickle.HIGHEST_PROTOCOL)
+        # with open(args.save_raw_scores, 'w') as f:
+        #     json.dump(save_dict, f)
+        #     f.close()
+

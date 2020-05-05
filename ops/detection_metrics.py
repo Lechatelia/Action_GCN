@@ -51,7 +51,7 @@ def segment_tiou(target_segments, test_segments):
         # Compute overlap as the ratio of the intersection
         # over union of two segments at the frame level.
         tiou[i, :] = intersection / union
-        t_overlap[i, :] = intersection
+        t_overlap[i, :] = intersection # overlap大小
     return tiou, t_overlap
 
 def segment_distance(target_segments, test_segments):
@@ -86,7 +86,7 @@ def segment_distance(target_segments, test_segments):
         union = (tt1 - tt2 + 1.0).clip(0)
         # Compute overlap as the ratio of the intersection
         # over union of two segments at the frame level.
-        dis_mat[i, :] = distance / union
+        dis_mat[i, :] = distance / union # 计算距离
 
     return dis_mat
 

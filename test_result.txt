@@ -1,0 +1,20 @@
+initiating evaluation of detection results ['result']
+Merge detection scores from 1 sources...
+Done.
+File parsed. Time:2.79
+Dict constructed. Time:12.59
+Preprocessing detections...
+Done.
+Performing nms...
+NMS Done.
+Performing location regression...
+Regression Done.
+Calling mean AP calculator from toolkit with 32 workers...
+Evaluation done.
+
+
++Detection Performance on thumos14------+--------+--------+--------+--------+--------+--------+---------+
+| IoU thresh | 0.10   | 0.20   | 0.30   | 0.40   | 0.50   | 0.60   | 0.70   | 0.80   | 0.90   | Average |
++------------+--------+--------+--------+--------+--------+--------+--------+--------+--------+---------+
+| mean AP    | 0.5738 | 0.5574 | 0.5263 | 0.4850 | 0.4276 | 0.3417 | 0.2268 | 0.0951 | 0.0146 | 0.3609  |
++------------+--------+--------+--------+--------+--------+--------+--------+--------+--------+---------+

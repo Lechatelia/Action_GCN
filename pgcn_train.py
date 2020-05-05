@@ -19,6 +19,7 @@ from ops.utils import get_and_save_args, get_logger
 from tools.Recorder import Recorder
 #from tensorboardX import SummaryWriter
 
+# SEED = 777
 SEED = 777
 random.seed(SEED)
 torch.manual_seed(SEED)
@@ -47,14 +48,17 @@ def main():
     args = parser.parse_args()
 
     """copy codes and creat dir for saving models and logs"""
+    args.snapshot_pref = args.snapshot_pref.format(args.dataset+'_'+args.mode)
     if not os.path.isdir(args.snapshot_pref):
         os.makedirs(args.snapshot_pref)
+    if args.mode == "rgb":
+        args.lr *= 0.1
 
     logger = get_logger(args)
     logger.info('\ncreating folder: ' + args.snapshot_pref)
 
     if not args.evaluate:
-        writer = SummaryWriter(args.snapshot_pref)
+        writer = SummaryWriter()
         #作者在这里对一些文件夹进行了备份，所以要排除那些不参加备份的路径
         recorder = Recorder(args.snapshot_pref, ["PGCN", "models", "__pycache__","anet_toolkit", "data","ops","results","tools"])
         recorder.writeopt(args)
@@ -63,7 +67,7 @@ def main():
 
 
     """construct model"""
-    model = PGCN(model_configs, graph_configs)
+    model = PGCN(model_configs, graph_configs) #网络模型
     policies = model.get_optim_policies()
     # model = torch.nn.DataParallel(model, device_ids=args.gpus).cuda()
     model = torch.nn.DataParallel(model, device_ids=args.gpus).cuda()
@@ -103,8 +107,8 @@ def main():
         num_workers=args.workers, pin_memory=True)
 
     """loss and optimizer"""
-    activity_criterion = torch.nn.CrossEntropyLoss().cuda()
-    completeness_criterion = CompletenessLoss().cuda()
+    activity_criterion = torch.nn.CrossEntropyLoss().cuda() # 分类损失
+    completeness_criterion = CompletenessLoss().cuda() # 是否完整
     regression_criterion = ClassWiseRegressionLoss().cuda()
 
     for group in policies:
@@ -128,7 +132,7 @@ def main():
 
         # evaluate on validation set
         if (epoch + 1) % args.eval_freq == 0 or epoch == args.epochs - 1:
-            loss = validate(val_loader, model, activity_criterion, completeness_criterion, regression_criterion, (epoch + 1) * len(train_loader))
+            loss = validate(val_loader, model, activity_criterion, completeness_criterion, regression_criterion, epoch, (epoch + 1) * len(train_loader))
             # remember best validation loss and save checkpoint
             is_best = loss < best_loss
             best_loss = min(loss, best_loss)
@@ -222,6 +226,12 @@ def train(train_loader, model, act_criterion, comp_criterion, regression_criteri
         writer.add_scalar('data/Act_loss', act_losses.val, epoch*len(train_loader)+i+1)
         writer.add_scalar('data/comp_loss', comp_losses.val, epoch*len(train_loader)+i+1)
 
+        writer.add_scalar('Train/act_acc', act_accuracies.val, epoch*len(train_loader)+i+1)
+        writer.add_scalar('Train/fg_acc', fg_accuracies.val, epoch*len(train_loader)+i+1)
+        writer.add_scalar('Train/bg_acc', bg_accuracies.val, epoch*len(train_loader)+i+1)
+
+        writer.add_scalar('Train/lr', optimizer.param_groups[0]['lr'], epoch*len(train_loader)+i+1)
+
         if i % args.print_freq == 0:
             logger.info('Epoch: [{0}][{1}/{2}], lr: {lr:.5f}\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -241,7 +251,7 @@ def train(train_loader, model, act_criterion, comp_criterion, regression_criteri
                   )
 
 
-def validate(val_loader, model, act_criterion, comp_criterion, regression_criterion, iter):
+def validate(val_loader, model, act_criterion, comp_criterion, regression_criterion, epoch, iter):
     batch_time = AverageMeter()
     losses = AverageMeter()
     act_losses = AverageMeter()
@@ -296,19 +306,26 @@ def validate(val_loader, model, act_criterion, comp_criterion, regression_criter
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i % args.print_freq == 0:
-            logger.info('Test: [{0}/{1}]\t'
-                  'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                  'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                  'Act. Loss {act_loss.val:.3f} ({act_loss.avg:.3f})\t'
-                  'Comp. Loss {comp_loss.val:.3f} ({comp_loss.avg:.3f})\t'
-                  'Act. Accuracy {act_acc.val:.02f} ({act_acc.avg:.2f}) FG {fg_acc.val:.02f} BG {bg_acc.val:.02f}'.format(
-                   i, len(val_loader), batch_time=batch_time, loss=losses,
-                    act_loss=act_losses, comp_loss=comp_losses, act_acc=act_accuracies,
-                    fg_acc=fg_accuracies, bg_acc=bg_accuracies) +
-                  '\tReg. Loss {reg_loss.val:.3f} ({reg_loss.avg:.3f})'.format(
-                      reg_loss=reg_losses))
+        # if i % args.print_freq == 0:
+        #     logger.info('Test: [{0}/{1}]\t'
+        #           'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+        #           'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+        #           'Act. Loss {act_loss.val:.3f} ({act_loss.avg:.3f})\t'
+        #           'Comp. Loss {comp_loss.val:.3f} ({comp_loss.avg:.3f})\t'
+        #           'Act. Accuracy {act_acc.val:.02f} ({act_acc.avg:.2f}) FG {fg_acc.val:.02f} BG {bg_acc.val:.02f}'.format(
+        #            i, len(val_loader), batch_time=batch_time, loss=losses,
+        #             act_loss=act_losses, comp_loss=comp_losses, act_acc=act_accuracies,
+        #             fg_acc=fg_accuracies, bg_acc=bg_accuracies) +
+        #           '\tReg. Loss {reg_loss.val:.3f} ({reg_loss.avg:.3f})'.format(
+        #               reg_loss=reg_losses))
+    writer.add_scalar('Test/loss', losses.avg, epoch )
+    writer.add_scalar('Test/Reg_loss', reg_losses.avg, epoch )
+    writer.add_scalar('Test/Act_loss', act_losses.avg, epoch )
+    writer.add_scalar('Test/comp_loss', comp_losses.avg, epoch )
 
+    writer.add_scalar('Val/act_acc', act_accuracies.avg, epoch)
+    writer.add_scalar('Val/fg_acc', fg_accuracies.avg, epoch)
+    writer.add_scalar('Val/bg_acc', bg_accuracies.avg, epoch)
     logger.info('Testing Results: Loss {loss.avg:.5f} \t '
           'Activity Loss {act_loss.avg:.3f} \t '
           'Completeness Loss {comp_loss.avg:.3f}\n'
@@ -321,10 +338,10 @@ def validate(val_loader, model, act_criterion, comp_criterion, regression_criter
 
 
 def save_checkpoint(state, is_best, epoch, filename='checkpoint.pth.tar'):
-    filename = args.snapshot_pref + '_'.join(('PGCN', args.dataset, 'epoch', str(epoch), filename))
+    filename = os.path.join(args.snapshot_pref, args.dataset + "_" + '_'.join((args.mode, 'epoch', str(epoch), filename)))
     torch.save(state, filename)
     if is_best:
-        best_name = args.snapshot_pref + '_'.join(('PGCN', args.dataset, 'model_best.pth.tar'))
+        best_name = os.path.join(args.snapshot_pref,args.dataset+ "_" + 'model_best.pth.tar')
         shutil.copyfile(filename, best_name)
 
 class AverageMeter(object):
@@ -347,7 +364,7 @@ class AverageMeter(object):
 
 def adjust_learning_rate(optimizer, epoch, lr_steps):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    decay = 0.1 ** (sum(epoch >= np.array(lr_steps)))
+    decay = 0.1 ** (sum(epoch >= np.array(lr_steps))) # 衰减系数
     lr = args.lr * decay
     decay = args.weight_decay
     for param_group in optimizer.param_groups:

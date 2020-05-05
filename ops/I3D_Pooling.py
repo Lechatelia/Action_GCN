@@ -6,8 +6,8 @@ import pandas as pd
 import time
 
 def I3D_Pooling(prop_indices, vid, ft_path, n_frame, n_seg=1):
-
-    ft_tensor = torch.load(os.path.join(ft_path, vid))
+    # prop_indices 就是在扩充的那些proposal 其总帧数为n_frame 不一定和特征的l_s长度一致
+    ft_tensor = torch.load(os.path.join(ft_path, vid)).type(torch.float32)
     fts_all_act = []
     fts_all_comp = []
 
@@ -17,7 +17,7 @@ def I3D_Pooling(prop_indices, vid, ft_path, n_frame, n_seg=1):
         act_e = prop[1]
         comp_s = prop[2]
         comp_e = prop[3]
-
+        # 分别对三个部分进行特征的pooling
         start_ft = feature_pooling(comp_s, act_s, vid,
                                   n_frame, n_seg, 'max', ft_tensor)
         end_ft = feature_pooling(act_e, comp_e, vid,
@@ -38,7 +38,7 @@ def I3D_Pooling(prop_indices, vid, ft_path, n_frame, n_seg=1):
 
 def feature_pooling(start_ind, end_ind, vid, n_frame, n_seg, type, ft_tensor):
     #for turn
-    interval = 8
+    interval = 8 # n_frame除以特征的长度刚好是8，猜测proposallist中的采样率是提取的I3D特征的采样率的八倍
     clip_length = 64
 
     fts = []

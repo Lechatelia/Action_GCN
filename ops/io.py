@@ -16,18 +16,18 @@ def load_proposal_file(filename):
         vid = info[offset]
         offset += 1
 
-        n_frame = int(float(info[1]) * float(info[2]))
-        n_gt = int(info[3])
+        n_frame = int(float(info[1]) * float(info[2])) # 总帧数
+        n_gt = int(info[3]) # gt数量
         offset = 4
 
         gt_boxes = [x.split() for x in info[offset:offset+n_gt]]
         offset += n_gt
         #if n_gt == 0:
          #   offset += 1
-        n_pr = int(info[offset])
+        n_pr = int(info[offset]) # proposal数量
         offset += 1
         pr_boxes = [x.split() for x in info[offset:offset+n_pr]]
-
+        # video_name, 该视频的帧数, gt, proposals
         return vid, n_frame, gt_boxes, pr_boxes
 
     return [parse_group(l) for l in info_list]

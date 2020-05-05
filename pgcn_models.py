@@ -78,6 +78,7 @@ class PGCN(torch.nn.Module):
         self.Comp_GCN = GCN(self.comp_feat_dim, 512, self.comp_feat_dim, dropout=model_configs['gcn_dropout'])
         self.dropout_layer = nn.Dropout(p=self.dropout)
 
+
     def _prepare_pgcn(self):
 
         self.activity_fc = nn.Linear(self.act_feat_dim * 2, self.num_class + 1)
@@ -116,7 +117,7 @@ class PGCN(torch.nn.Module):
             elif len(m._modules) == 0:
                 if len(list(m.parameters())) > 0:
                     raise ValueError("New atomic module type: {}. Need to give it a learning policy".format(type(m)))
-
+        print('da')
         return [
             {'params': normal_weight, 'lr_mult': 1, 'decay_mult': 1,
              'name': "normal_weight"},
@@ -133,9 +134,9 @@ class PGCN(torch.nn.Module):
 
     def train_forward(self, input, target, reg_target, prop_type):
 
-        activity_fts = input[0]
-        completeness_fts = input[1]
-        batch_size = activity_fts.size()[0]
+        activity_fts = input[0] #[bs, 168, 1024]
+        completeness_fts = input[1] #[bs, 168, 3072]
+        batch_size = activity_fts.size()[0] # [32]
 
         # construct feature matrix
         act_ft_mat = activity_fts.view(-1, self.act_feat_dim).contiguous()
@@ -230,8 +231,8 @@ class PGCN(torch.nn.Module):
         len_mat = torch.mm(torch.transpose(len_vec, 0, 1), len_vec)
         comp_cos_sim_mat = dot_product_mat / len_mat
 
-        mask = act_ft_mat.new_zeros(self.adj_num, self.adj_num)
-        for stage_cnt in range(self.child_num + 1):
+        mask = act_ft_mat.new_zeros(self.adj_num, self.adj_num) # [adj_num, adj_num]
+        for stage_cnt in range(self.child_num + 1): #0~ child_num
             ind_list = list(range(1 + stage_cnt * self.child_num, 1 + (stage_cnt + 1) * self.child_num))
             for i, ind in enumerate(ind_list):
                 mask[stage_cnt, ind] = 1 / self.child_num

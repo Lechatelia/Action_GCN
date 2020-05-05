@@ -15,24 +15,30 @@ from ops.utils import softmax
 import os
 import pickle
 from ops.utils import get_configs
-
+import json
 
 # options
 parser = argparse.ArgumentParser(
     description="Evaluate detection performance metrics")
-parser.add_argument('dataset', type=str, choices=['activitynet1.2', 'thumos14'])
-parser.add_argument('detection_pickles', type=str, nargs='+')
-parser.add_argument('--nms_threshold', type=float, default=None)
+parser.add_argument('--dataset', default='thumos14', type=str, choices=['activitynet1.2', 'thumos14'])
+parser.add_argument('--mode', type=str, default='rgb', choices=['rgb', 'flow'])
+parser.add_argument('--yaml_file', type=str, default='./data/dataset_cfg_{}.yaml',
+                    choices=['./data/dataset_cfg_{model}.yaml'])
+
+parser.add_argument('--detection_pickles', default=['results/flow_result','results/rgb_result'], type=str, nargs='+')
+# parser.add_argument('--detection_pickles', default=['results/{}_result'], type=str, nargs='+')
+parser.add_argument('--nms_threshold', type=float, default=0.32)
 parser.add_argument('--no_regression', default=False, action="store_true")
 parser.add_argument('-j', '--ap_workers', type=int, default=32)
 parser.add_argument('--top_k', type=int, default=None)
 parser.add_argument('--cls_scores', type=str, default=None)
 parser.add_argument('--cls_top_k', type=int, default=1)
-parser.add_argument('--score_weights', type=float, default=None, nargs='+')
+# parser.add_argument('--score_weights', type=float, default=None, choices=[None, [1.2, 1] ],nargs='+')
+parser.add_argument('--score_weights', type=float, default=[1.2, 1], choices=[None, [1.2, 1] ],nargs='+')
 
 args = parser.parse_args()
 
-configs = get_configs(args.dataset)
+configs = get_configs(args.dataset, args.yaml_file.format(args.mode))
 dataset_configs = configs['dataset_configs']
 model_configs = configs["model_configs"]
 graph_configs = configs["graph_configs"]
@@ -44,13 +50,14 @@ top_k = args.top_k if args.top_k else configs['evaluation']['top_k']
 print("initiating evaluation of detection results {}".format(args.detection_pickles))
 score_pickle_list = []
 for pc in args.detection_pickles:
-    score_pickle_list.append(pickle.load(open(pc, 'rb')))
+    score_pickle_list.append(pickle.load(open(pc.format(args.mode), 'rb')))
+    # with open(pc+'.json', 'r') as fobj:
+    #     score_pickle_list.append(json.load(fobj))
 
 if args.score_weights:
     weights = np.array(args.score_weights) / sum(args.score_weights)
 else:
     weights = [1.0/len(score_pickle_list) for _ in score_pickle_list]
-
 
 def merge_scores(vid):
     def merge_part(arrs, index, weights):

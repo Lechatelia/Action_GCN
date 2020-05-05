@@ -21,17 +21,17 @@ class PGCNInstance:
     def __init__(self, start_frame, end_frame, video_frame_count,
                  fps=1, label=None,
                  best_iou=None, overlap_self=None):
-        self.start_frame = start_frame
+        self.start_frame = start_frame # 对于每一个proposal 开始 结束 和标签
         self.end_frame = min(end_frame, video_frame_count)
-        self._label = label
+        self._label = label #
         self.fps = fps
 
-        self.coverage = (end_frame - start_frame) / video_frame_count
+        self.coverage = (end_frame - start_frame) / video_frame_count # 在整个视频中的 覆盖范围
 
-        self.best_iou = best_iou
+        self.best_iou = best_iou # 与真值之间最好的iou
         self.overlap_self = overlap_self
 
-        self.loc_reg = None
+        self.loc_reg = None  #这个proposal应该回归的值
         self.size_reg = None
 
     def compute_regression_targets(self, gt_list, fg_thresh):
@@ -51,9 +51,9 @@ class PGCNInstance:
         # (1). center shift propotional to the proposal duration
         # (2). logarithm of the groundtruth duration over proposal duraiton
 
-        self.loc_reg = (gt_center - prop_center) / prop_size
+        self.loc_reg = (gt_center - prop_center) / prop_size # 位置回归量
         try:
-            self.size_reg = math.log(gt_size / prop_size)
+            self.size_reg = math.log(gt_size / prop_size) # 长度回归量
         except:
             print(gt_size, prop_size, self.start_frame, self.end_frame)
             raise
@@ -77,11 +77,11 @@ class PGCNInstance:
 
 class PGCNVideoRecord:
     def __init__(self, prop_record):
-        self._data = prop_record
+        self._data = prop_record # 记录某个video的信息
 
-        frame_count = int(self._data[1])
+        frame_count = int(self._data[1]) # 视频帧数
 
-        # build instance record
+        # build instance record 对于每一个proposal或者gt文件
         self.gt = [
             PGCNInstance(int(x[1]), int(x[2]), frame_count, label=int(x[0]), best_iou=1.0) for x in self._data[2]
             if int(x[2]) > int(x[1])
@@ -89,7 +89,7 @@ class PGCNVideoRecord:
 
         self.gt = list(filter(lambda x: x.start_frame < frame_count, self.gt))
 
-        self.proposals = [
+        self.proposals = [ # 对于每一个proposal
             PGCNInstance(int(x[3]), int(x[4]), frame_count, label=int(x[0]),
                         best_iou=float(x[1]), overlap_self=float(x[2])) for x in self._data[3] if int(x[4]) > int(x[3])
         ]
@@ -104,11 +104,11 @@ class PGCNVideoRecord:
         return int(self._data[1])
 
     def get_fg(self, fg_thresh, with_gt=True):
-        fg = [p for p in self.proposals if p.best_iou > fg_thresh]
-        if with_gt:
+        fg = [p for p in self.proposals if p.best_iou > fg_thresh] # 需要大于一定的阈值
+        if with_gt: # 添加真值作为训练
             fg.extend(self.gt)
 
-        for x in fg:
+        for x in fg: # 对于每一个proposal计算回归值
             x.compute_regression_targets(self.gt, fg_thresh)
         return fg
 
@@ -120,16 +120,16 @@ class PGCNVideoRecord:
         incomplete_props = []
         background_props = []
 
-        for i in range(len(tag)):
+        for i in range(len(tag)): # 不完整片段的判断
             if self.proposals[i].best_iou < incomplete_iou_thresh \
-                    and self.proposals[i].overlap_self > incomplete_overlap_thresh:
+                    and self.proposals[i].overlap_self > incomplete_overlap_thresh: # overlap 要越大越好
                 tag[i] = 1 # incomplete
                 incomplete_props.append(self.proposals[i])
 
-        for i in range(len(tag)):
+        for i in range(len(tag)): # 背景片段的判断
             if tag[i] == 0 and \
                 self.proposals[i].best_iou < bg_iou_thresh and \
-                            self.proposals[i].coverage > bg_coverage_thresh:
+                            self.proposals[i].coverage > bg_coverage_thresh: # 覆盖范围也要超过一定阈值
                 background_props.append(self.proposals[i])
         return incomplete_props, background_props
 
@@ -139,49 +139,49 @@ class PGCNDataSet(data.Dataset):
     def __init__(self, dataset_configs, graph_configs, prop_file, prop_dict_path, ft_path, exclude_empty=True,
                  epoch_multiplier=1, test_mode=False, gt_as_fg=True, reg_stats=None):
 
-        self.ft_path = ft_path
-        self.prop_file = prop_file
-        self.prop_dict_path = prop_dict_path
+        self.ft_path = ft_path # 特征路径
+        self.prop_file = prop_file # BSN proposal文件
+        self.prop_dict_path = prop_dict_path # 存放处理的数据集结果
 
         self.exclude_empty = exclude_empty
         self.epoch_multiplier = epoch_multiplier
         self.gt_as_fg = gt_as_fg
         self.test_mode = test_mode
 
-        self.fg_ratio = dataset_configs['fg_ratio']
-        self.incomplete_ratio = dataset_configs['incomplete_ratio']
-        self.bg_ratio = dataset_configs['bg_ratio']
-        self.prop_per_video = dataset_configs['prop_per_video']
+        self.fg_ratio = dataset_configs['fg_ratio'] # 1
+        self.incomplete_ratio = dataset_configs['incomplete_ratio'] # 6
+        self.bg_ratio = dataset_configs['bg_ratio'] # 1
+        self.prop_per_video = dataset_configs['prop_per_video'] #8
 
 
-        self.fg_iou_thresh = dataset_configs['fg_iou_thresh']
-        self.bg_iou_thresh = dataset_configs['bg_iou_thresh']
-        self.iou_threshold = dataset_configs['iou_threshold']
-        self.dis_threshold = dataset_configs['dis_threshold']
-        self.bg_coverage_thresh = dataset_configs['bg_coverage_thresh']
-        self.incomplete_iou_thresh = dataset_configs['incomplete_iou_thresh']
-        self.incomplete_overlap_thresh = dataset_configs['incomplete_overlap_thresh']
+        self.fg_iou_thresh = dataset_configs['fg_iou_thresh'] # 0.7
+        self.bg_iou_thresh = dataset_configs['bg_iou_thresh'] # 0.01
+        self.iou_threshold = dataset_configs['iou_threshold'] # 0.7 构建图结构
+        self.dis_threshold = dataset_configs['dis_threshold'] # 0
+        self.bg_coverage_thresh = dataset_configs['bg_coverage_thresh'] # 0.02
+        self.incomplete_iou_thresh = dataset_configs['incomplete_iou_thresh'] # 0.3
+        self.incomplete_overlap_thresh = dataset_configs['incomplete_overlap_thresh'] #0.01
 
-        self.starting_ratio = dataset_configs['starting_ratio']
-        self.ending_ratio = dataset_configs['ending_ratio']
+        self.starting_ratio = dataset_configs['starting_ratio'] # 0.5
+        self.ending_ratio = dataset_configs['ending_ratio'] # 0.5
 
 
-        self.adj_num = graph_configs['adj_num']
-        self.child_num = graph_configs['child_num']
-        self.child_iou_num = graph_configs['iou_num']
-        self.child_dis_num = graph_configs['dis_num']
+        self.adj_num = graph_configs['adj_num'] #21
+        self.child_num = graph_configs['child_num'] # 4
+        self.child_iou_num = graph_configs['iou_num'] # 2
+        self.child_dis_num = graph_configs['dis_num'] #8
 
         denum = self.fg_ratio + self.bg_ratio + self.incomplete_ratio
-        self.fg_per_video = int(self.prop_per_video * (self.fg_ratio / denum))
-        self.bg_per_video = int(self.prop_per_video * (self.bg_ratio / denum))
-        self.incomplete_per_video = self.prop_per_video - self.fg_per_video - self.bg_per_video
+        self.fg_per_video = int(self.prop_per_video * (self.fg_ratio / denum)) # 实际前景个数 1
+        self.bg_per_video = int(self.prop_per_video * (self.bg_ratio / denum)) # 实际背景个数 1
+        self.incomplete_per_video = self.prop_per_video - self.fg_per_video - self.bg_per_video # 不完整片段的个数 6
 
         parse_time = time.time()
-        self._parse_prop_file(stats=reg_stats)
+        self._parse_prop_file(stats=reg_stats) # 解析proposal文件
         print("File parsed. Time:{:.2f}".format(time.time() - parse_time))
 
         """pre-compute iou and distance among proposals"""
-        if os.path.exists(self.prop_dict_path):
+        if os.path.exists(self.prop_dict_path): # 已经存在了这些可以训练的文件
             construct_time = time.time()
             # if "val" not in self.prop_dict_path:
             dicts = pickle.load(open(self.prop_dict_path, "rb"))
@@ -202,20 +202,20 @@ class PGCNDataSet(data.Dataset):
 
     def _prepare_iou_dict(self):
         pbar = tqdm(total=len(self.video_list))
-        for cnt, video in enumerate(self.video_list):
+        for cnt, video in enumerate(self.video_list): # 对于每一个video
             pbar.update(1)
-            fg = video.get_fg(self.fg_iou_thresh, self.gt_as_fg)
+            fg = video.get_fg(self.fg_iou_thresh, self.gt_as_fg) # 前景
             incomp, bg = video.get_negatives(self.incomplete_iou_thresh, self.bg_iou_thresh,
-                                             self.bg_coverage_thresh, self.incomplete_overlap_thresh)
-            self.prop_dict[video.id] = [fg, incomp, bg]
+                                             self.bg_coverage_thresh, self.incomplete_overlap_thresh) #背景区域
+            self.prop_dict[video.id] = [fg, incomp, bg] # 为每个video选择不同的前景 背景 和不完整片段
             video_pool = fg + incomp + bg
             # calculate act iou matrix
             prop_array = np.array([[prop.start_frame, prop.end_frame] for prop in video_pool])
-            iou_array, overlap_array = segment_tiou(prop_array, prop_array)
+            iou_array, overlap_array = segment_tiou(prop_array, prop_array) # 计算所有proposal之间的IOU and overlap 便于邻接矩阵 [N, N]
             self.act_iou_dict[video.id] = iou_array
             # calculate act distance matrix
             prop_array = np.array([[prop.start_frame, prop.end_frame] for prop in video_pool])
-            distance_array = segment_distance(prop_array, prop_array)
+            distance_array = segment_distance(prop_array, prop_array) # 计算proposal之间的距离 [N, N]
             self.act_dis_dict[video.id] = distance_array
         pbar.close()
 
@@ -223,7 +223,7 @@ class PGCNDataSet(data.Dataset):
         pbar = tqdm(total=len(self.video_list))
         for cnt, video in enumerate(self.video_list):
             pbar.update(1)
-            video_pool = video.proposals
+            video_pool = video.proposals #对于测试集来说，就不存在前景背景和完整片段，需要所有的都计算IOU与distance
             # calculate act iou matrix
             prop_array = np.array([[prop.start_frame, prop.end_frame] for prop in video_pool])
             iou_array, overlap_array = segment_tiou(prop_array, prop_array)
@@ -235,16 +235,16 @@ class PGCNDataSet(data.Dataset):
         pbar.close()
 
     def _parse_prop_file(self, stats=None):
-        prop_info = load_proposal_file(self.prop_file)
+        prop_info = load_proposal_file(self.prop_file) # 读取proposal文件 # video_name, 该视频的帧数, gt, proposals
 
-        self.video_list = [PGCNVideoRecord(p) for p in prop_info]
+        self.video_list = [PGCNVideoRecord(p) for p in prop_info] # 处理每一个video的信息，每个video都含有很多proposal
 
         if self.exclude_empty:
             self.video_list = list(filter(lambda x: len(x.gt) > 0, self.video_list))
 
         self.video_dict = {v.id: v for v in self.video_list}
 
-        # construct three pools:
+        # construct three pools: pool的元素（videoname, proposal)
         # 1. Foreground
         # 2. Background
         # 3. Incomplete
@@ -253,49 +253,49 @@ class PGCNDataSet(data.Dataset):
         self.bg_pool = []
         self.incomp_pool = []
 
-        for v in self.video_list:
-            self.fg_pool.extend([(v.id, prop) for prop in v.get_fg(self.fg_iou_thresh, self.gt_as_fg)])
+        for v in self.video_list: # for each video
+            self.fg_pool.extend([(v.id, prop) for prop in v.get_fg(self.fg_iou_thresh, self.gt_as_fg)]) # 得到前景
 
-            incomp, bg = v.get_negatives(self.incomplete_iou_thresh, self.bg_iou_thresh,
+            incomp, bg = v.get_negatives(self.incomplete_iou_thresh, self.bg_iou_thresh, # 选择背景与不完整片段
                                          self.bg_coverage_thresh, self.incomplete_overlap_thresh)
 
             self.incomp_pool.extend([(v.id, prop) for prop in incomp])
             self.bg_pool.extend([(v.id, prop) for prop in bg])
 
         if stats is None:
-            self._compute_regresssion_stats()
+            self._compute_regresssion_stats() # 计算均值与方差
         else:
             self.stats = stats
 
 
-    def _sample_child_nodes(self, video_pool, center_idx, video_id):
-        # obtain iou array for all the proposals
+    def _sample_child_nodes(self, video_pool, center_idx, video_id): # 对中间节点进行邻接节点的采样
+        # obtain iou array for all the proposals 根据IOU采样邻接节点
         act_iou_array = self.act_iou_dict[video_id][center_idx, :]
         act_iou_array = np.squeeze(act_iou_array)
         # remove self
         rm_act_iou_array = act_iou_array.copy()
-        rm_act_iou_array[center_idx] = 0
+        rm_act_iou_array[center_idx] = 0 # 与其它proposal之间的iou
         # filter the proposals
-        pos_iou_idx = np.where(rm_act_iou_array > self.iou_threshold)[0]
+        pos_iou_idx = np.where(rm_act_iou_array > self.iou_threshold)[0] # 大于 阈值的proposal序号
         if pos_iou_idx.size != 0:
-            pos_iou_arr = rm_act_iou_array[pos_iou_idx]
-            sorted_pos_iou_idx = np.argsort(-pos_iou_arr).tolist()
+            pos_iou_arr = rm_act_iou_array[pos_iou_idx] # [N1]
+            sorted_pos_iou_idx = np.argsort(-pos_iou_arr).tolist() # 取负进行排序[N1] 也就是从大到小
             selected_pos_iou_idx = np.tile(sorted_pos_iou_idx, self.child_iou_num)
-            ref_iou_idx = selected_pos_iou_idx[:self.child_iou_num]
+            ref_iou_idx = selected_pos_iou_idx[:self.child_iou_num] # 选择前childnum的邻近节点
             abs_iou_idx = pos_iou_idx[ref_iou_idx]
         else:
             abs_iou_idx = np.tile(np.array(center_idx), self.child_iou_num)
 
-        # obtain dis array for all the proposals
+        # obtain dis array for all the proposals 根据距离挑选邻近节点
         act_dis_array = self.act_dis_dict[video_id][center_idx, :]
         act_dis_array = np.squeeze(act_dis_array)
-        selected_ious_ind = act_iou_array <= 0
-        selected_dis_ind = act_dis_array > self.dis_threshold
+        selected_ious_ind = act_iou_array <= 0 # 首先要沒有iou
+        selected_dis_ind = act_dis_array > self.dis_threshold # 然後dis大于0即可
         selected_ind = np.logical_and(selected_ious_ind, selected_dis_ind)
         pos_dis_idx = np.where(selected_ind == 1)[0]
         if pos_dis_idx.size != 0:
             pos_dis_arr = act_dis_array[pos_dis_idx]
-            sorted_pos_dis_idx = np.argsort(pos_dis_arr).tolist()
+            sorted_pos_dis_idx = np.argsort(pos_dis_arr).tolist() # 距离从小到大进行排序 [N2]
             selected_pos_dis_idx = np.tile(sorted_pos_dis_idx, self.child_dis_num)
             ref_dis_idx = selected_pos_dis_idx[:self.child_dis_num]
             abs_dis_idx = pos_dis_idx[ref_dis_idx]
@@ -303,74 +303,83 @@ class PGCNDataSet(data.Dataset):
             abs_dis_idx = np.tile(np.array(center_idx), self.child_dis_num)
 
         # obtain child idxs
-        abs_child_idx = np.concatenate([abs_iou_idx, abs_dis_idx])
+        abs_child_idx = np.concatenate([abs_iou_idx, abs_dis_idx]) # 两种邻接节点拼在一起 [N1 + N2] 10
         np.random.shuffle(abs_child_idx)
-        abs_child_idx = abs_child_idx[:self.child_num]
+        abs_child_idx = abs_child_idx[:self.child_num] # 从中间随机挑选了[child_num]个邻居 4
 
         return [video_pool[ind] for ind in abs_child_idx], \
-               [ind for ind in abs_child_idx]
+               [ind for ind in abs_child_idx] #返回相应的proposal与编号
 
     def _sample_proposals_via_graph(self, center_prop, video_id, proposal_type, video_pool, abs_center_idx):
-
-        prop_idx_list = [abs_center_idx]
-        selected_props = [((video_id, center_prop), proposal_type)]
+        'proposal_type 0, 1, 2 分别代表三个类别的proposal '
+        prop_idx_list = [abs_center_idx] # 采样的proposal序号
+        selected_props = [((video_id, center_prop), proposal_type)] # 采样的proposal信息
 
         center_idx = abs_center_idx
-        for stage_cnt in range(self.child_num+1):
+        for stage_cnt in range(self.child_num+1): # 采样child_num+1次 因为要跟中心节点及其一级邻居采样生成2级邻居
             # sample proposal with the largest iou
-            props, idxs = self._sample_child_nodes(video_pool, center_idx, video_id)
+            props, idxs = self._sample_child_nodes(video_pool, center_idx, video_id) # 每次采样child_num个点 返回是对应的proposal与相应序号
             prop_idx_list.extend(idxs)
             for prop in props:
                 selected_props.append(((video_id, prop), proposal_type))
 
-            center_idx = prop_idx_list[stage_cnt+1]
+            center_idx = prop_idx_list[stage_cnt+1] # 为下一个一级邻居采样子节点
 
-        return selected_props
+        return selected_props # 根据中心节点采样，返回包括自身的1+(child_num+1)*child_num个proposal 1+4*(4+1)=21
 
     def _sample_adjacent_proposals(self, proposal_type, video_id, type_pool, requested_num, video_full_pool,
                                    video_pool_list):
-        ref_center_idx = np.random.choice(len(type_pool), requested_num)
+        '''
+        proposal_type: 0, 1, 2 对应着fg, incomplete_per_video, bg
+        video_id: video name
+        type_pool: 存储着fg, incomplete_per_video, bg任意类型所有的proposal
+        requested_num：1 需要几个
+        video_full_pool： 所有的proposal
+        video_pool_list： 三个list，存储三种类型的proposal
+
+        '''
+        ref_center_idx = np.random.choice(len(type_pool), requested_num) # 随机选取一个
         if proposal_type == 0:
             abs_center_idx = ref_center_idx[0]
         elif proposal_type == 1:
             abs_center_idx = ref_center_idx[0] + len(video_pool_list[0])
         else:
             abs_center_idx = ref_center_idx[0] + len(video_pool_list[0]) + len(video_pool_list[1])
-        center_prop = type_pool[ref_center_idx[0]]
+        center_prop = type_pool[ref_center_idx[0]] # 得到中间的proposal
 
-        props = self._sample_proposals_via_graph(center_prop, video_id, proposal_type,
+        props = self._sample_proposals_via_graph(center_prop, video_id, proposal_type, # 2级邻居的稀疏采样，一共采样到21个proposals
                                                  video_full_pool, abs_center_idx)
         return props
 
     def _video_centric_sampling(self, video):
 
-        fg, incomp, bg = self.prop_dict[video.id][0], self.prop_dict[video.id][1], self.prop_dict[video.id][2]
+        fg, incomp, bg = self.prop_dict[video.id][0], self.prop_dict[video.id][1], self.prop_dict[video.id][2] # 得到三种proposal
 
         video_full_pool = fg + incomp + bg
 
         out_props = []
         video_pool_list = [fg, incomp, bg]
 
-        for i in range(self.fg_per_video):
-            props = self._sample_adjacent_proposals(0, video.id, fg, 1, video_full_pool, video_pool_list)
+        for i in range(self.fg_per_video): # 前景数目1
+            props = self._sample_adjacent_proposals(0, video.id, fg, 1, video_full_pool, video_pool_list) # 随机采样一个（前景）节点，并生成它的邻接节点（1级和2级邻居），一共21个
             out_props.extend(props)  # sample foreground
 
-        for i in range(self.incomplete_per_video):
+        for i in range(self.incomplete_per_video): # 不完整片段数目6
             if len(incomp) == 0:
                 props = self._sample_adjacent_proposals(0, video.id, fg, 1, video_full_pool, video_pool_list)
             else:
-                props = self._sample_adjacent_proposals(1, video.id, incomp, 1, video_full_pool, video_pool_list)
+                props = self._sample_adjacent_proposals(1, video.id, incomp, 1, video_full_pool, video_pool_list) # 随机采样不完整片段，以及其邻居节点
             out_props.extend(props)  # sample incomp
 
-        for i in range(self.bg_per_video):
+        for i in range(self.bg_per_video): # 背景数目1
             if len(bg) == 0:
                 props = self._sample_adjacent_proposals(0, video.id, fg, 1, video_full_pool, video_pool_list)
             else:
-                props = self._sample_adjacent_proposals(2, video.id, bg, 1, video_full_pool, video_pool_list)
+                props = self._sample_adjacent_proposals(2, video.id, bg, 1, video_full_pool, video_pool_list) # 随机采样背景片段，以及其邻居节点
             out_props.extend(props)  # sample bg
 
 
-        return out_props
+        return out_props # 返回那些采样到的proposals 数目是prop_per_video * (1+ child_num*(child_num+1))=8*21=168
 
 
     def _sample_indices(self, valid_length, num_seg):
@@ -401,7 +410,7 @@ class PGCNDataSet(data.Dataset):
         valid_starting = max(1, start_frame - int(duration * self.starting_ratio))
         valid_ending = min(frame_cnt, end_frame + int(duration * self.ending_ratio))
 
-        # get starting
+        # get starting # 两个区间
         act_s_e = (start_frame, end_frame)
         comp_s_e = (valid_starting, valid_ending)
 
@@ -409,16 +418,16 @@ class PGCNDataSet(data.Dataset):
 
         return offsets
 
-    def _load_prop_data(self, prop):
+    def _load_prop_data(self, prop): # 读取proposal的特征
 
         # read frame count
         frame_cnt = self.video_dict[prop[0][0]].num_frames
 
         # sample segment indices
-        prop_indices = self._sample_pgcn_indices(prop[0][1], frame_cnt)
+        prop_indices = self._sample_pgcn_indices(prop[0][1], frame_cnt) # [act_start, act_end, complt_start, comple_end]
 
         # get label
-        if prop[1] == 0:
+        if prop[1] == 0: # proposal_type
             label = prop[0][1].label
         elif prop[1] == 1:
             label = prop[0][1].label  # incomplete
@@ -428,14 +437,14 @@ class PGCNDataSet(data.Dataset):
             raise ValueError()
 
         # get regression target
-        if prop[1] == 0:
+        if prop[1] == 0: # fg proposal
             reg_targets = prop[0][1].regression_targets
             reg_targets = (reg_targets[0] - self.stats[0][0]) / self.stats[1][0], \
                           (reg_targets[1] - self.stats[0][1]) / self.stats[1][1]
         else:
             reg_targets = (0.0, 0.0)
 
-        return prop_indices, label, reg_targets, prop[1]
+        return prop_indices, label, reg_targets, prop[1] # sample segment indices, label, reg_targets, proposal_type
 
     def _compute_regresssion_stats(self):
 
@@ -483,15 +492,15 @@ class PGCNDataSet(data.Dataset):
     def get_training_data(self, index):
 
         video = self.video_list[index]
-        props = self._video_centric_sampling(video)
+        props = self._video_centric_sampling(video) # 进行采样，返回那些采样到的proposals，[168=8*(4*5+1)]
 
         out_prop_ind = []
         out_prop_type = []
         out_prop_labels = []
         out_prop_reg_targets = []
 
-        for idx, p in enumerate(props):
-            prop_indices, prop_label, reg_targets, prop_type = self._load_prop_data(p)
+        for idx, p in enumerate(props): # for each
+            prop_indices, prop_label, reg_targets, prop_type = self._load_prop_data(p) # sample segment indices, label, reg_targets, proposal_type
 
             out_prop_ind.append(prop_indices)
             out_prop_labels.append(prop_label)
@@ -502,7 +511,7 @@ class PGCNDataSet(data.Dataset):
         out_prop_reg_targets = torch.from_numpy(np.array(out_prop_reg_targets, dtype=np.float32))
         out_prop_type = torch.from_numpy(np.array(out_prop_type))
 
-        #load prop fts
+        #load prop fts 加载网络权重
         vid_full_name = video.id
         vid = vid_full_name.split('/')[-1]
 
