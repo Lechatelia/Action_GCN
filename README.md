@@ -1,6 +1,10 @@
 ## Graph Convolutional Networks for Temporal Action Localization
 
+This repo is from [this](https://github.com/Alvin-Zeng/PGCN)
 
+I only add Chinese comments for the awesome codes.
+
+Old README
 
 This repo holds the codes and models for the PGCN framework presented on ICCV 2019
 
